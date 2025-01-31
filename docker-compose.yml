@@ -1,0 +1,198 @@
+version: "3.8"
+
+services:
+  trino:
+    hostname: trino
+    container_name: trino
+    restart: on-failure
+    sysctls:
+      - net.ipv4.tcp_keepalive_intvl=75 &&
+      - net.ipv4.tcp_keepalive_probes=10 &&
+      - net.ipv4.tcp_keepalive_time=240
+    image: trinodb/trino:464
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 64G
+    ports:
+      - 10000:8080
+      - 18080:18080
+      - 18849:8849 # jprofile ports
+    volumes:
+      - ./docker-compose/trino/catalog/local/clickhouse.properties:/etc/trino/catalog/clickhouse.properties:ro
+      - ./docker-compose/trino/catalog/local/hive.properties:/etc/trino/catalog/hive.properties:ro
+      - ./docker-compose/trino/catalog/local/iceberg.properties:/etc/trino/catalog/iceberg.properties:ro
+      - ./docker-compose/trino/catalog/local/generator.properties:/etc/trino/catalog/generator.properties:ro
+      - ./docker-compose/trino/coordinator/session-property-config.json:/etc/trino/session-property-config.json:ro
+      - ./docker-compose/trino/coordinator/session-property-config.properties:/etc/trino/session-property-config.properties:ro
+      - ./docker-compose/trino/coordinator/auth:/etc/trino/auth:ro
+      - ./docker-compose/trino/coordinator/password-authenticator.properties:/etc/trino/password-authenticator.properties:ro
+      - ./docker-compose/trino/coordinator/config.properties:/etc/trino/config.properties:ro
+      - ./docker-compose/trino/coordinator/jvm.config:/etc/trino/jvm.config
+  trino-worker:
+    restart: on-failure
+    sysctls:
+      - net.ipv4.tcp_keepalive_intvl=75 &&
+      - net.ipv4.tcp_keepalive_probes=10 &&
+      - net.ipv4.tcp_keepalive_time=240
+    image: trinodb/trino:464
+    deploy:
+      mode: replicated
+      replicas: 2
+      resources:
+        limits:
+          cpus: '4'
+          memory: 64G
+    ports:
+      - "18850-18870:8849" # jprofile ports
+    depends_on:
+      trino:
+        condition: service_healthy
+    volumes:
+      - ./docker-compose/trino/catalog/local/clickhouse.properties:/etc/trino/catalog/clickhouse.properties:ro
+      - ./docker-compose/trino/catalog/local/hive.properties:/etc/trino/catalog/hive.properties:ro
+      - ./docker-compose/trino/catalog/local/iceberg.properties:/etc/trino/catalog/iceberg.properties:ro
+      - ./docker-compose/trino/catalog/local/generator.properties:/etc/trino/catalog/generator.properties:ro
+      - ./docker-compose/trino/exchange-manager.properties:/etc/trino/exchange-manager.properties:ro
+      - ./docker-compose/trino/worker/config.properties:/etc/trino/config.properties
+      - ./docker-compose/trino/worker/jvm.config:/etc/trino/jvm.config
+      - ./docker-compose/trino/worker/node.properties:/etc/trino/node.properties
+
+  zookeeper:
+    image: zookeeper:3.6.3
+    ports:
+      - 2181
+    hostname: zookeeper
+
+  clickhouse1:
+    image: clickhouse/clickhouse-server:23.8
+    environment:
+      CLICKHOUSE_USER: root
+      CLICKHOUSE_PASSWORD: admin888
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    hostname: clickhouse1
+    ports:
+      - "18123:8123"
+      - "19000:9000"
+    volumes:
+      - ./docker-compose/clickhouse/config.d/config.xml:/etc/clickhouse-server/config.d/config.xml
+      - ./docker-compose/clickhouse/remote_servers.xml:/etc/clickhouse-server/config.d/remote_servers.xml
+      - ./docker-compose/clickhouse/zookeeper.xml:/etc/clickhouse-server/config.d/zookeeper.xml
+      - ./docker-compose/clickhouse/clickhouse1/interserver_http_host.xml:/etc/clickhouse-server/config.d/interserver_http_host.xml
+      - ./docker-compose/clickhouse/clickhouse1/macros.xml:/etc/clickhouse-server/config.d/macros.xml
+    depends_on:
+      - zookeeper
+      - "mc-job"
+
+  clickhouse2:
+    image: clickhouse/clickhouse-server:23.8
+    environment:
+      CLICKHOUSE_USER: root
+      CLICKHOUSE_PASSWORD: admin888
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    hostname: clickhouse2
+    ports:
+      - 8123
+      - 9000
+    volumes:
+      - ./docker-compose/clickhouse/config.d/config.xml:/etc/clickhouse-server/config.d/config.xml
+      - ./docker-compose/clickhouse/remote_servers.xml:/etc/clickhouse-server/config.d/remote_servers.xml
+      - ./docker-compose/clickhouse/zookeeper.xml:/etc/clickhouse-server/config.d/zookeeper.xml
+      - ./docker-compose/clickhouse/clickhouse2/interserver_http_host.xml:/etc/clickhouse-server/config.d/interserver_http_host.xml
+      - ./docker-compose/clickhouse/clickhouse2/macros.xml:/etc/clickhouse-server/config.d/macros.xml
+    depends_on:
+      - zookeeper
+      - "mc-job"
+
+  clickhouse3:
+    image: clickhouse/clickhouse-server:23.8
+    environment:
+      CLICKHOUSE_USER: root
+      CLICKHOUSE_PASSWORD: admin888
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    hostname: clickhouse3
+    ports:
+      - 8123
+      - 9000
+    volumes:
+      - ./docker-compose/clickhouse/config.d/config.xml:/etc/clickhouse-server/config.d/config.xml
+      - ./docker-compose/clickhouse/remote_servers.xml:/etc/clickhouse-server/config.d/remote_servers.xml
+      - ./docker-compose/clickhouse/zookeeper.xml:/etc/clickhouse-server/config.d/zookeeper.xml
+      - ./docker-compose/clickhouse/clickhouse3/interserver_http_host.xml:/etc/clickhouse-server/config.d/interserver_http_host.xml
+      - ./docker-compose/clickhouse/clickhouse3/macros.xml:/etc/clickhouse-server/config.d/macros.xml
+    depends_on:
+      - zookeeper
+      - "mc-job"
+
+
+  metastore_db:
+    image: postgres:11
+    hostname: metastore_db
+    container_name: metastore_db
+    environment:
+      POSTGRES_USER: hive
+      POSTGRES_PASSWORD: hive
+      POSTGRES_DB: metastore
+
+  hive-metastore:
+    container_name: hive-metastore
+    hostname: hive-metastore
+    image: starburstdata/hive:3.1.2-e.15
+    ports:
+      - '9083:9083' # Metastore Thrift
+    environment:
+      HIVE_METASTORE_DRIVER: org.postgresql.Driver
+      HIVE_METASTORE_JDBC_URL: jdbc:postgresql://metastore_db:5432/metastore
+      HIVE_METASTORE_USER: hive
+      HIVE_METASTORE_PASSWORD: hive
+      HIVE_METASTORE_WAREHOUSE_DIR: s3://mybucket/
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: minio
+      S3_SECRET_KEY: minio123
+      S3_PATH_STYLE_ACCESS: "true"
+      REGION: ""
+      GOOGLE_CLOUD_KEY_FILE_PATH: ""
+      AZURE_ADL_CLIENT_ID: ""
+      AZURE_ADL_CREDENTIAL: ""
+      AZURE_ADL_REFRESH_URL: ""
+      AZURE_ABFS_STORAGE_ACCOUNT: ""
+      AZURE_ABFS_ACCESS_KEY: ""
+      AZURE_WASB_STORAGE_ACCOUNT: ""
+      AZURE_ABFS_OAUTH: ""
+      AZURE_ABFS_OAUTH_TOKEN_PROVIDER: ""
+      AZURE_ABFS_OAUTH_CLIENT_ID: ""
+      AZURE_ABFS_OAUTH_SECRET: ""
+      AZURE_ABFS_OAUTH_ENDPOINT: ""
+      AZURE_WASB_ACCESS_KEY: ""
+    depends_on:
+      - metastore_db
+
+
+  minio:
+    hostname: minio
+    image: minio/minio:RELEASE.2024-01-05T22-17-24Z
+    container_name: minio
+    ports:
+      - 9000:9000
+      - 9001:9001
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+      MINIO_ACCESS_KEY: minio
+      MINIO_SECRET_KEY: minio123
+    command: server /data --console-address ":9001"
+
+  mc-job:
+    image: minio/mc:RELEASE.2022-05-09T04-08-26Z
+    container_name: mc-job
+    entrypoint: |
+      /bin/bash -c "
+      sleep 5;
+      /usr/bin/mc config --quiet host add minio http://minio:9000 minio minio123;
+      /usr/bin/mc alias set minio http://minio:9000 minio minio123;
+      /usr/bin/mc mb --quiet minio/mybucket
+      /usr/bin/mc policy set public minio/mybucket;
+      "
+    depends_on:
+      - minio
