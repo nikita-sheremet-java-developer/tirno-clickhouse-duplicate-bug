@@ -83,7 +83,6 @@ services:
       - ./docker-compose/clickhouse/clickhouse1/macros.xml:/etc/clickhouse-server/config.d/macros.xml
     depends_on:
       - zookeeper
-      - trino-worker # because workers start time is longer then mc-job
 
   clickhouse2:
     image: clickhouse/clickhouse-server:23.8
@@ -103,7 +102,6 @@ services:
       - ./docker-compose/clickhouse/clickhouse2/macros.xml:/etc/clickhouse-server/config.d/macros.xml
     depends_on:
       - zookeeper
-      - trino-worker # because workers start time is longer then mc-job
 
   clickhouse3:
     image: clickhouse/clickhouse-server:23.8
@@ -123,7 +121,6 @@ services:
       - ./docker-compose/clickhouse/clickhouse3/macros.xml:/etc/clickhouse-server/config.d/macros.xml
     depends_on:
       - zookeeper
-      - trino-worker # because workers start time is longer then mc-job
 
 
   metastore_db:

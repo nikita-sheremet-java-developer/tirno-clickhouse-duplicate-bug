@@ -1,5 +1,6 @@
 # Run
 1) strat docker-compose
+   1) ClickHouse containers should be run again after docker-compose manually (Can not understand this behavior) 
 2) Run `com.nsheremet.trino.ApplicationTest.deduplicates` it will create and populate tables
 3) Run sql
 ```
